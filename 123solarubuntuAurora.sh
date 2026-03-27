@@ -8,7 +8,7 @@ _485SOLAR_GET=1
 
 # Aurora Power One inverter - RS485 to Ethernet adapter settings
 # Adapter IP and port (adjust _AURORA_INVERTER_PORT if your adapter differs)
-_AURORA_INVERTER_IP=*******IP ADDRESS********
+_AURORA_INVERTER_IP=***IP ADDRESS***
 _AURORA_INVERTER_PORT=4196          # RS485-to-Ethernet adapter port
 _AURORA_VIRTUAL_PORT=/dev/ttyV0     # Virtual serial port created by socat
 
@@ -45,12 +45,16 @@ fi
 apt-get update
 apt-get -y upgrade
 
-# Remove Apache if installed — it conflicts with nginx on port 80
-if dpkg -l | grep -q apache2; then
-    echo "Apache2 detected — removing to avoid conflict with nginx..."
-    apt-get remove --purge -y apache2 apache2-utils
-    apt-get autoremove -y
-fi
+# Remove Apache and any Apache-related packages — they conflict with nginx on port 80
+# libapache2-mod-php* is also removed as it pulls apache2 back in as a dependency
+echo "Removing Apache2 and related packages to avoid conflict with nginx..."
+apt-get remove --purge -y \
+    apache2 \
+    apache2-utils \
+    apache2-bin \
+    apache2-data \
+    'libapache2-mod-php*'
+apt-get autoremove -y
 
 # Install Components
 # - Added build-essential, unzip, wget (not always present on minimal Ubuntu)
