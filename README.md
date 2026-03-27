@@ -9,6 +9,7 @@ sudo apt-get install -y git
 
 # 2. Clone the repository
 git clone https://github.com/Plutoaurus/123solar-ubuntu.git
+
 cd 123solar-ubuntu
 
 Edit the script to add the IP Address
