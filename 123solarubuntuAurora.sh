@@ -8,7 +8,7 @@ _485SOLAR_GET=1
 
 # Aurora Power One inverter - RS485 to Ethernet adapter settings
 # Adapter IP and port (adjust _AURORA_INVERTER_PORT if your adapter differs)
-_AURORA_INVERTER_IP=********IPADDRESS*******
+_AURORA_INVERTER_IP=*******IP ADDRESS********
 _AURORA_INVERTER_PORT=4196          # RS485-to-Ethernet adapter port
 _AURORA_VIRTUAL_PORT=/dev/ttyV0     # Virtual serial port created by socat
 
@@ -16,6 +16,8 @@ _AURORA_VIRTUAL_PORT=/dev/ttyV0     # Virtual serial port created by socat
 
 _123SOLAR_VER=1.8.4.5
 _123SOLAR_URL=https://github.com/jeanmarc77/123solar/releases/download/1.8.4.5/123solar1.8.4.5.tar.gz
+
+
 _123SOLAR_SVC=https://github.com/jeanmarc77/123solar/blob/main/misc/examples/123solar.service
 _485SOLAR_GET_VER=1.000
 _485SOLAR_GET_URL=https://github.com/Plutoaurus/123solar-ubuntu/blob/master/485solar-get_1.003-sources.tgz
@@ -42,6 +44,13 @@ fi
 
 apt-get update
 apt-get -y upgrade
+
+# Remove Apache if installed — it conflicts with nginx on port 80
+if dpkg -l | grep -q apache2; then
+    echo "Apache2 detected — removing to avoid conflict with nginx..."
+    apt-get remove --purge -y apache2 apache2-utils
+    apt-get autoremove -y
+fi
 
 # Install Components
 # - Added build-essential, unzip, wget (not always present on minimal Ubuntu)
