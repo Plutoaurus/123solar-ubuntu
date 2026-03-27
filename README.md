@@ -1,2 +1,2 @@
 # 123solar-rpi
-123Solar Installation Script for Raspbian (Raspberry Pi)
+123Solar Installation Script for Ubuntu
