@@ -8,7 +8,7 @@ _485SOLAR_GET=1
 
 # Aurora Power One inverter - RS485 to Ethernet adapter settings
 # Adapter IP and port (adjust _AURORA_INVERTER_PORT if your adapter differs)
-_AURORA_INVERTER_IP=***IP ADDRESS***
+_AURORA_INVERTER_IP=**ip address**
 _AURORA_INVERTER_PORT=4196          # RS485-to-Ethernet adapter port
 _AURORA_VIRTUAL_PORT=/dev/ttyV0     # Virtual serial port created by socat
 
@@ -59,11 +59,13 @@ apt-get autoremove -y
 # Install Components
 # - Added build-essential, unzip, wget (not always present on minimal Ubuntu)
 # - Added php-xml, php-mbstring (commonly required by web apps)
-# - libgcc-s1 replaces the Pi-specific libgcc1 on modern Ubuntu
 # - socat creates a virtual serial port tunnelled over TCP to the RS485-Ethernet adapter
+# - NOTE: the generic 'php' meta-package is intentionally omitted — on Ubuntu it pulls in
+#   libapache2-mod-php which reinstalls Apache and conflicts with nginx on port 80.
+#   php-cli, php-fpm and php-cgi provide everything 123solar needs without Apache.
 apt-get -y install \
     nginx \
-    php php-fpm php-cgi php-curl php-xml php-mbstring \
+    php-cli php-fpm php-cgi php-curl php-xml php-mbstring \
     msmtp \
     build-essential \
     wget \
