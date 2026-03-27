@@ -12,11 +12,11 @@ _123SOLAR_URL=$(curl -s https://123solar.org/latest_version.php | awk '/"LINK":/
 
 _123SOLAR_SVC=https://github.com/jeanmarc77/123solar/blob/main/misc/examples/123solar.service
 _485SOLAR_GET_VER=1.000
-_485SOLAR_GET_URL=http://downloads.sourceforge.net/project/solarget/485solar-get-$_485SOLAR_GET_VER-sources.tgz
+_485SOLAR_GET_URL=https://github.com/Plutoaurus/123solar-ubuntu/blob/master/485solar-get_1.003-sources.tgz
 _AURORA_VER=1.9.3
-_AURORA_URL=http://www.curtronics.com/Solar/ftp/aurora-$_AURORA_VER.tar.gz
+_AURORA_URL=https://github.com/Plutoaurus/123solar-ubuntu/blob/master/aurora-1.9.4.tar.gz
 _YASDI_VER=1.8.1build9
-_YASDI_URL=http://files.sma.de/dl/11705/yasdi-$_YASDI_VER-src.zip
+_YASDI_URL=https://github.com/Plutoaurus/123solar-ubuntu/blob/master/yasdi-1.8.1build9-src.zip
 
 ###############################################################################
 
