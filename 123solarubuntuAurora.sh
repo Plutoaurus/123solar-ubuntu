@@ -8,7 +8,7 @@ _485SOLAR_GET=1
 
 # Aurora Power One inverter - RS485 to Ethernet adapter settings
 # Adapter IP and port (adjust _AURORA_INVERTER_PORT if your adapter differs)
-_AURORA_INVERTER_IP=**ip address**
+_AURORA_INVERTER_IP=**IP ADDRESS**
 _AURORA_INVERTER_PORT=4196          # RS485-to-Ethernet adapter port
 _AURORA_VIRTUAL_PORT=/dev/ttyV0     # Virtual serial port created by socat
 
@@ -18,13 +18,13 @@ _123SOLAR_VER=1.8.4.5
 _123SOLAR_URL=https://github.com/jeanmarc77/123solar/releases/download/1.8.4.5/123solar1.8.4.5.tar.gz
 
 
-_123SOLAR_SVC=https://github.com/jeanmarc77/123solar/blob/main/misc/examples/123solar.service
+_123SOLAR_SVC=https://github.com/jeanmarc77/123solar/raw/main/misc/examples/123solar.service
 _485SOLAR_GET_VER=1.000
-_485SOLAR_GET_URL=https://github.com/Plutoaurus/123solar-ubuntu/blob/master/485solar-get_1.003-sources.tgz
+_485SOLAR_GET_URL=https://github.com/Plutoaurus/123solar-ubuntu/raw/master/485solar-get_1.003-sources.tgz
 _AURORA_VER=1.9.3
-_AURORA_URL=https://github.com/Plutoaurus/123solar-ubuntu/blob/master/aurora-1.9.4.tar.gz
+_AURORA_URL=https://github.com/Plutoaurus/123solar-ubuntu/raw/master/aurora-1.9.4.tar.gz
 _YASDI_VER=1.8.1build9
-_YASDI_URL=https://github.com/Plutoaurus/123solar-ubuntu/blob/master/yasdi-1.8.1build9-src.zip
+_YASDI_URL=https://github.com/Plutoaurus/123solar-ubuntu/raw/master/yasdi-1.8.1build9-src.zip
 
 ###############################################################################
 
