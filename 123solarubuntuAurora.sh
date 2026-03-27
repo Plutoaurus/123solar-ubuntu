@@ -18,7 +18,6 @@ _123SOLAR_VER=1.8.4.5
 _123SOLAR_URL=https://github.com/jeanmarc77/123solar/releases/download/1.8.4.5/123solar1.8.4.5.tar.gz
 
 
-_123SOLAR_SVC=https://github.com/jeanmarc77/123solar/raw/main/misc/examples/123solar.service
 _485SOLAR_GET_VER=1.000
 _485SOLAR_GET_URL=https://github.com/Plutoaurus/123solar-ubuntu/raw/master/485solar-get_1.003-sources.tgz
 _AURORA_VER=1.9.3
@@ -102,8 +101,27 @@ wget -P ~ $_123SOLAR_URL
 tar -xzvf ~/123solar*.tar.gz -C /var/www/html
 rm ~/123solar*.tar.gz
 chown -R www-data:www-data /var/www/html/123solar
-wget -P /etc/systemd/system $_123SOLAR_SVC
-sed -i "s/php-fpm/$PHP_FPM/g" /etc/systemd/system/123solar.service
+# Write the 123solar systemd service file directly rather than downloading the
+# upstream version, which targets Arch Linux (/srv/http, User=http) and breaks on Ubuntu.
+cat > /etc/systemd/system/123solar.service << EOF
+[Unit]
+Description=123Solar
+After=network.target aurora-socat.service
+Requires=aurora-socat.service
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/var/www/html/123solar/scripts
+ExecStart=/usr/bin/php 123solar.php
+ExecStartPost=/bin/sh -c "systemctl show -p MainPID --value 123solar.service > /var/www/html/123solar/scripts/123solar.pid"
+ExecStopPost=/usr/bin/rm -f /var/www/html/123solar/scripts/123solar.pid
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
 
 # Serial port access
 # www-data needs dialout for the socat virtual port as well as any real serial ports
