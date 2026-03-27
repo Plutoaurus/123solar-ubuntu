@@ -28,4 +28,4 @@ The script will handle everything from there — installing packages, building a
 For Aurora Power One
 Port: /dev/ttyV0
 Protocol: Aurora (or Power One Aurora depending on your version)
-Communication options: -U25 -Y50 -w10 -a1 -d0
+Communication options: -U25 -Y50 -w10 -a1 -d0 -D
