@@ -16,8 +16,6 @@ _AURORA_VIRTUAL_PORT=/dev/ttyV0     # Virtual serial port created by socat
 
 _123SOLAR_VER=1.8.4.5
 _123SOLAR_URL=https://github.com/jeanmarc77/123solar/releases/download/1.8.4.5/123solar1.8.4.5.tar.gz
-_123SOLAR_URL=$(curl -s https://123solar.org/latest_version.php | awk '/"LINK":/ {print substr($2,2,length($2)-3)}')
-
 _123SOLAR_SVC=https://github.com/jeanmarc77/123solar/blob/main/misc/examples/123solar.service
 _485SOLAR_GET_VER=1.000
 _485SOLAR_GET_URL=https://github.com/Plutoaurus/123solar-ubuntu/blob/master/485solar-get_1.003-sources.tgz
