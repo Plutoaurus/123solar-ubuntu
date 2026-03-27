@@ -6,11 +6,11 @@ _485SOLAR_GET=1
 
 ###############################################################################
 
-_123SOLAR_VER=1.8
-_123SOLAR_URL=https://www.123solar.org/downloads/123solar/123solar$_123SOLAR_VER.tar.gz
+_123SOLAR_VER=1.8.4.5
+_123SOLAR_URL=https://github.com/jeanmarc77/123solar/releases/download/1.8.4.5/123solar1.8.4.5.tar.gz
 _123SOLAR_URL=$(curl -s https://123solar.org/latest_version.php | awk '/"LINK":/ {print substr($2,2,length($2)-3)}')
 
-_123SOLAR_SVC=http://www.123solar.org/downloads/123solar/123solar.service
+_123SOLAR_SVC=https://github.com/jeanmarc77/123solar/blob/main/misc/examples/123solar.service
 _485SOLAR_GET_VER=1.000
 _485SOLAR_GET_URL=http://downloads.sourceforge.net/project/solarget/485solar-get-$_485SOLAR_GET_VER-sources.tgz
 _AURORA_VER=1.9.3
