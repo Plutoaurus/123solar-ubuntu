@@ -130,6 +130,70 @@ sed -i 's|https://code.highcharts.com/modules/drilldown.js|/123solar/js/highchar
 sed -i 's|https://code.highcharts.com/modules/exporting.js|/123solar/js/highcharts/modules/exporting.js|g' /var/www/html/123solar/scripts/links.php
 sed -i 's|https://code.highcharts.com/modules/annotations.js|/123solar/js/highcharts/modules/annotations.js|g' /var/www/html/123solar/scripts/links.php
 
+# Copy jQuery files from repo and patch links.php to use local paths.
+# jQuery CDN is reliable but keeping all JS local avoids any external dependencies.
+mkdir -p /var/www/html/123solar/js/jquery
+cp $GIT_PATH/jquery/jquery-3.7.1.min.js /var/www/html/123solar/js/jquery/
+cp $GIT_PATH/jquery/jquery-ui.min.js /var/www/html/123solar/js/jquery/
+cp $GIT_PATH/jquery/jquery-ui.css /var/www/html/123solar/js/jquery/
+chown -R www-data:www-data /var/www/html/123solar/js/jquery
+# Use python3 to patch jQuery URLs in links.php — the jquery-ui URL spans
+# multiple lines with integrity hashes so sed multiline matching is unreliable.
+python3 << 'PYEOF'
+import re
+with open('/var/www/html/123solar/scripts/links.php', 'r') as f:
+    c = f.read()
+c = c.replace(
+    "https://code.jquery.com/jquery-3.7.1.min.js' integrity='sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=' crossorigin='anonymous",
+    "/123solar/js/jquery/jquery-3.7.1.min.js"
+)
+c = re.sub(
+    r"https://code\.jquery\.com/ui/1\.14\.1/jquery-ui\.min\.js.*?crossorigin='anonymous",
+    "/123solar/js/jquery/jquery-ui.min.js",
+    c, flags=re.DOTALL
+)
+c = c.replace(
+    "https://code.jquery.com/ui/1.14.1/themes/south-street/jquery-ui.css",
+    "/123solar/js/jquery/jquery-ui.css"
+)
+with open('/var/www/html/123solar/scripts/links.php', 'w') as f:
+    f.write(c)
+PYEOF
+
+# Copy jQuery files from repo and patch links.php to use local paths.
+# jQuery CDN is reliable but serving locally avoids any future CDN issues
+# and removes the external dependency at runtime.
+mkdir -p /var/www/html/123solar/js/jquery
+cp $GIT_PATH/jquery/jquery-3.7.1.min.js /var/www/html/123solar/js/jquery/
+cp $GIT_PATH/jquery/jquery-ui.min.js /var/www/html/123solar/js/jquery/
+cp $GIT_PATH/jquery/jquery-ui.css /var/www/html/123solar/js/jquery/
+chown -R www-data:www-data /var/www/html/123solar/js/jquery
+# Use PHP to patch the jQuery URLs — the strings span multiple lines making
+# sed unreliable. PHP handles multiline string replacement cleanly.
+php -r '
+$file = "/var/www/html/123solar/scripts/links.php";
+$c = file_get_contents($file);
+$c = preg_replace(
+    "/"https:\/\/code\.jquery\.com\/jquery-3\.7\.1\.min\.js[^"]*"/",
+    ''"/123solar/js/jquery/jquery-3.7.1.min.js"' ',
+    $c
+);
+$c = preg_replace(
+    "/"https:\/\/code\.jquery\.com\/ui\/1\.14\.1\/jquery-ui\.min\.js[^"]*"/s",
+    ''"/123solar/js/jquery/jquery-ui.min.js"' ',
+    $c
+);
+$c = str_replace(
+    "https://code.jquery.com/ui/1.14.1/themes/south-street/jquery-ui.css",
+    "/123solar/js/jquery/jquery-ui.css",
+    $c
+);
+file_put_contents($file, $c);
+echo "jQuery links patched
+";
+'
+chown www-data:www-data /var/www/html/123solar/scripts/links.php
+
 # Fix aurora output field index in aurora.php.
 # Aurora v1.9.4 outputs 53 fields per line with OK at position 52 (0-indexed).
 # The upstream code uses $ok=21 which was designed for an older aurora version
