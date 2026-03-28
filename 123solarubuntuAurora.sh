@@ -110,6 +110,43 @@ cp -r ~/123solar/* /var/www/html/123solar/
 rm -rf ~/123solar
 chown -R www-data:www-data /var/www/html/123solar
 
+# Ensure DEBUG mode is off — when DEBUG=true 123solar bypasses systemctl and
+# launches php directly, breaking the start/stop buttons in the admin panel.
+sed -i "s/\$DEBUG=true/\$DEBUG=false/" /var/www/html/123solar/config/config_main.php
+
+# Fix aurora output field index in aurora.php.
+# Aurora v1.9.4 outputs 53 fields per line with OK at position 52 (0-indexed).
+# The upstream code uses $ok=21 which was designed for an older aurora version
+# with shorter output — this causes all readings to be treated as NOK/failed.
+sed -i "s/\$ok = 21;/\$ok = 52;/" /var/www/html/123solar/scripts/protocols/aurora.php
+sed -i "s/\$ok = 31;/\$ok = 52;/" /var/www/html/123solar/scripts/protocols/aurora.php
+
+# Increase the admin panel start/stop redirect delay from 1s to 4s.
+# systemctl stop/start takes a few seconds; without this the page reloads
+# before the service state has changed and the button shows the wrong state.
+sed -i "s/}, 1000);/}, 4000);/" /var/www/html/123solar/admin/admin.php
+
+# Fix start button bug in admin.php — replace the unreliable ps+PID check
+# with a direct systemctl is-active check. The upstream code uses ps to check
+# if 123solar is running, but when $PID is empty it matches any 123solar.php
+# process (including rogue ones), causing systemctl start to be skipped.
+php -r '
+$file = "/var/www/html/123solar/admin/admin.php";
+$c = file_get_contents($file);
+$old = '\''                        exec("$PSCMD | grep $PID | grep 123solar.php", $ret);
+                                if (!isset($ret[1])) { // avoid several instances
+                                $command = exec("sudo systemctl start 123solar.service");
+                                }'\'';
+$new = '\''                        $svcstate = exec("systemctl is-active 123solar.service");
+                                if ($svcstate != "active") {
+                                $command = exec("sudo systemctl start 123solar.service");
+                                }'\'';
+$c = str_replace($old, $new, $c);
+file_put_contents($file, $c);
+echo "Done\n";
+'
+chown www-data:www-data /var/www/html/123solar/admin/admin.php
+
 # Write the 123solar systemd service file directly rather than downloading the
 # upstream version, which targets Arch Linux (/srv/http, User=http) and breaks on Ubuntu.
 cat > /etc/systemd/system/123solar.service << EOF
@@ -133,6 +170,14 @@ EOF
 
 # Serial port access for www-data
 usermod -a -G dialout www-data
+
+# Allow www-data to start/stop the 123solar systemd service without a password.
+# This is required for the start/stop buttons in the 123solar web admin panel.
+cat > /etc/sudoers.d/123solar << EOF
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl start 123solar.service
+www-data ALL=(ALL) NOPASSWD: /bin/systemctl stop 123solar.service
+EOF
+chmod 440 /etc/sudoers.d/123solar
 
 # aurora
 if [ $_AURORA -eq 1 ]; then
