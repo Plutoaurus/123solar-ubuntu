@@ -114,6 +114,22 @@ chown -R www-data:www-data /var/www/html/123solar
 # launches php directly, breaking the start/stop buttons in the admin panel.
 sed -i "s/\$DEBUG=true/\$DEBUG=false/" /var/www/html/123solar/config/config_main.php
 
+# Download Highcharts locally — code.highcharts.com now returns 403 for CDN
+# requests without a license. Files are stored in the repo at highcharts/ and
+# copied to the web root. All Highcharts URLs are defined in scripts/links.php.
+mkdir -p /var/www/html/123solar/js/highcharts/modules
+cp $GIT_PATH/highcharts/highcharts.js /var/www/html/123solar/js/highcharts/
+cp $GIT_PATH/highcharts/highcharts-more.js /var/www/html/123solar/js/highcharts/
+cp $GIT_PATH/highcharts/modules/drilldown.js /var/www/html/123solar/js/highcharts/modules/
+cp $GIT_PATH/highcharts/modules/exporting.js /var/www/html/123solar/js/highcharts/modules/
+cp $GIT_PATH/highcharts/modules/annotations.js /var/www/html/123solar/js/highcharts/modules/
+chown -R www-data:www-data /var/www/html/123solar/js/highcharts
+sed -i 's|https://code.highcharts.com/highcharts.js|/123solar/js/highcharts/highcharts.js|g' /var/www/html/123solar/scripts/links.php
+sed -i 's|https://code.highcharts.com/highcharts-more.js|/123solar/js/highcharts/highcharts-more.js|g' /var/www/html/123solar/scripts/links.php
+sed -i 's|https://code.highcharts.com/modules/drilldown.js|/123solar/js/highcharts/modules/drilldown.js|g' /var/www/html/123solar/scripts/links.php
+sed -i 's|https://code.highcharts.com/modules/exporting.js|/123solar/js/highcharts/modules/exporting.js|g' /var/www/html/123solar/scripts/links.php
+sed -i 's|https://code.highcharts.com/modules/annotations.js|/123solar/js/highcharts/modules/annotations.js|g' /var/www/html/123solar/scripts/links.php
+
 # Fix aurora output field index in aurora.php.
 # Aurora v1.9.4 outputs 53 fields per line with OK at position 52 (0-indexed).
 # The upstream code uses $ok=21 which was designed for an older aurora version
