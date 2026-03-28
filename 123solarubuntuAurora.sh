@@ -8,14 +8,13 @@ _485SOLAR_GET=1
 
 # Aurora Power One inverter - Waveshare RS485-to-Ethernet adapter settings
 # Adjust these if your adapter IP or port differs
-_AURORA_INVERTER_IP=**IP ADDRESS*
+_AURORA_INVERTER_IP=**IP ADDRESS**
 _AURORA_INVERTER_PORT=4196          # Waveshare default TCP port
 _AURORA_VIRTUAL_PORT=/tmp/ttyV0     # Temp virtual serial port used per-call by wrapper
 
 ###############################################################################
 
-_123SOLAR_VER=1.8.4.5
-_123SOLAR_URL=https://github.com/jeanmarc77/123solar/releases/download/1.8.4.5/123solar1.8.4.5.tar.gz
+_123SOLAR_REPO=https://github.com/jeanmarc77/123solar.git
 
 _485SOLAR_GET_VER=1.000
 _485SOLAR_GET_URL=https://github.com/Plutoaurus/123solar-ubuntu/raw/master/485solar-get_1.003-sources.tgz
@@ -63,6 +62,7 @@ apt-get autoremove -y
 # - socat is used by the aurora-eth wrapper to bridge TCP to a per-call virtual serial port
 apt-get -y install \
     nginx \
+    git \
     php-cli php-fpm php-cgi php-curl php-xml php-mbstring \
     msmtp \
     build-essential \
@@ -95,10 +95,14 @@ if ! grep -q "sendmail_path" /etc/php/$PHP_VERSION/fpm/php.ini; then
     sed -i '/;sendmail_path/a sendmail_path = "/usr/bin/msmtp -C /etc/msmtprc -t"' /etc/php/$PHP_VERSION/fpm/php.ini
 fi
 
-# 123Solar
-wget -P ~ $_123SOLAR_URL
-tar -xzvf ~/123solar*.tar.gz -C /var/www/html
-rm ~/123solar*.tar.gz
+# 123Solar — clone directly from the GitHub repository to get the latest code
+# (the release tarball lags behind the repo)
+if [ -d ~/123solar ]; then
+    rm -rf ~/123solar
+fi
+git clone --depth=1 $_123SOLAR_REPO ~/123solar
+cp -r ~/123solar/* /var/www/html/123solar/
+rm -rf ~/123solar
 chown -R www-data:www-data /var/www/html/123solar
 
 # Write the 123solar systemd service file directly rather than downloading the
