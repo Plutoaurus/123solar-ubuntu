@@ -6,21 +6,20 @@ _485SOLAR_GET=1
 
 ###############################################################################
 
-# Aurora Power One inverter - RS485 to Ethernet adapter settings
-# Adapter IP and port (adjust _AURORA_INVERTER_PORT if your adapter differs)
-_AURORA_INVERTER_IP=**IP ADDRESS**
-_AURORA_INVERTER_PORT=4196          # RS485-to-Ethernet adapter port
-_AURORA_VIRTUAL_PORT=/dev/ttyV0     # Virtual serial port created by socat
+# Aurora Power One inverter - Waveshare RS485-to-Ethernet adapter settings
+# Adjust these if your adapter IP or port differs
+_AURORA_INVERTER_IP=**IP ADDRESS*
+_AURORA_INVERTER_PORT=4196          # Waveshare default TCP port
+_AURORA_VIRTUAL_PORT=/tmp/ttyV0     # Temp virtual serial port used per-call by wrapper
 
 ###############################################################################
 
 _123SOLAR_VER=1.8.4.5
 _123SOLAR_URL=https://github.com/jeanmarc77/123solar/releases/download/1.8.4.5/123solar1.8.4.5.tar.gz
 
-
 _485SOLAR_GET_VER=1.000
 _485SOLAR_GET_URL=https://github.com/Plutoaurus/123solar-ubuntu/raw/master/485solar-get_1.003-sources.tgz
-_AURORA_VER=1.9.3
+_AURORA_VER=1.9.4
 _AURORA_URL=https://github.com/Plutoaurus/123solar-ubuntu/raw/master/aurora-1.9.4.tar.gz
 _YASDI_VER=1.8.1build9
 _YASDI_URL=https://github.com/Plutoaurus/123solar-ubuntu/raw/master/yasdi-1.8.1build9-src.zip
@@ -44,8 +43,10 @@ fi
 apt-get update
 apt-get -y upgrade
 
-# Remove Apache and any Apache-related packages — they conflict with nginx on port 80
-# libapache2-mod-php* is also removed as it pulls apache2 back in as a dependency
+# Remove Apache and any Apache-related packages — they conflict with nginx on port 80.
+# libapache2-mod-php* must also be removed as it pulls apache2 back in as a dependency
+# when installing PHP packages. The generic 'php' meta-package has the same problem so
+# we install php-cli/fpm/cgi individually instead (see apt-get install below).
 echo "Removing Apache2 and related packages to avoid conflict with nginx..."
 apt-get remove --purge -y \
     apache2 \
@@ -56,12 +57,10 @@ apt-get remove --purge -y \
 apt-get autoremove -y
 
 # Install Components
-# - Added build-essential, unzip, wget (not always present on minimal Ubuntu)
-# - Added php-xml, php-mbstring (commonly required by web apps)
-# - socat creates a virtual serial port tunnelled over TCP to the RS485-Ethernet adapter
 # - NOTE: the generic 'php' meta-package is intentionally omitted — on Ubuntu it pulls in
 #   libapache2-mod-php which reinstalls Apache and conflicts with nginx on port 80.
 #   php-cli, php-fpm and php-cgi provide everything 123solar needs without Apache.
+# - socat is used by the aurora-eth wrapper to bridge TCP to a per-call virtual serial port
 apt-get -y install \
     nginx \
     php-cli php-fpm php-cgi php-curl php-xml php-mbstring \
@@ -82,7 +81,7 @@ echo "Detected PHP version: $PHP_VERSION (service: $PHP_FPM)"
 cp $GIT_PATH/nginx.conf /etc/nginx/sites-available/default
 sed -i "s/php-fpm/$PHP_FPM/g" /etc/nginx/sites-available/default
 
-# Remove the default nginx enabled site if it conflicts
+# Ensure the default site symlink is in place
 if [ -f /etc/nginx/sites-enabled/default ]; then
     ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
 fi
@@ -101,13 +100,13 @@ wget -P ~ $_123SOLAR_URL
 tar -xzvf ~/123solar*.tar.gz -C /var/www/html
 rm ~/123solar*.tar.gz
 chown -R www-data:www-data /var/www/html/123solar
+
 # Write the 123solar systemd service file directly rather than downloading the
 # upstream version, which targets Arch Linux (/srv/http, User=http) and breaks on Ubuntu.
 cat > /etc/systemd/system/123solar.service << EOF
 [Unit]
 Description=123Solar
-After=network.target aurora-socat.service
-Requires=aurora-socat.service
+After=network.target
 
 [Service]
 Type=simple
@@ -123,8 +122,7 @@ RestartSec=10
 WantedBy=multi-user.target
 EOF
 
-# Serial port access
-# www-data needs dialout for the socat virtual port as well as any real serial ports
+# Serial port access for www-data
 usermod -a -G dialout www-data
 
 # aurora
@@ -144,67 +142,123 @@ if [ $_AURORA -eq 1 ]; then
     cd ~
     rm -fr ~/aurora*
 
-    # --- RS485-to-Ethernet virtual serial port via socat ---
-    # socat bridges the TCP connection to the adapter and presents it as a
-    # standard serial device at $_AURORA_VIRTUAL_PORT so that the aurora
-    # binary and 123solar can treat it like a locally attached RS485 port.
-    cat > /etc/systemd/system/aurora-socat.service << EOF
-[Unit]
-Description=socat virtual serial port for Aurora RS485-Ethernet adapter (${_AURORA_INVERTER_IP}:${_AURORA_INVERTER_PORT})
-After=network-online.target
-Wants=network-online.target
+    # Rename the real aurora binary so the wrapper can call it explicitly.
+    # The wrapper is then symlinked as 'aurora' so 123solar calls it transparently.
+    mv /usr/local/bin/aurora /usr/local/bin/aurora-real
 
-[Service]
-Type=simple
-# PTY link= creates a stable symlink at $_AURORA_VIRTUAL_PORT
-# waitslave keeps the PTY open even when nothing has the port open yet
-# b19200 matches the default Aurora RS485 baud rate — adjust if needed
-ExecStart=/usr/bin/socat \
-    PTY,link=${_AURORA_VIRTUAL_PORT},b19200,raw,echo=0,waitslave \
-    TCP:${_AURORA_INVERTER_IP}:${_AURORA_INVERTER_PORT},retry,interval=5,forever
-Restart=always
-RestartSec=5
+    # --- aurora-eth wrapper ---
+    # The Waveshare RS485-to-Ethernet adapter uses short-connection mode — it accepts
+    # a TCP connection, transfers data, then closes it immediately. A persistent socat
+    # bridge therefore doesn't work. Instead this wrapper:
+    #   1. Opens a fresh socat TCP->PTY bridge for each aurora call
+    #   2. Waits for the virtual port to appear
+    #   3. Passes the real /dev/pts path to aurora-real (required because aurora-real
+    #      is a setuid root binary that can't follow symlinks in /tmp)
+    #   4. Uses flock so parallel 123solar calls queue rather than collide
+    #   5. Appends the real port if 123solar omits it (some check calls don't include it)
+    cat > /usr/local/bin/aurora-eth << 'WRAPEOF'
+#!/bin/bash
+ADAPTER_IP=__ADAPTER_IP__
+ADAPTER_PORT=__ADAPTER_PORT__
+VIRTUAL_PORT=__VIRTUAL_PORT__
+LOCKFILE=/tmp/aurora-eth.lock
 
-[Install]
-WantedBy=multi-user.target
-EOF
+(
+    # Serialise all calls — only one TCP connection to the adapter at a time
+    # Exit 0 on timeout so 123solar doesn't treat a queued call as a fatal error
+    flock -w 30 200 || exit 0
 
-    # Make sure 123solar waits for the virtual port to be ready
-    mkdir -p /etc/systemd/system/123solar.service.d
-    cat > /etc/systemd/system/123solar.service.d/after-socat.conf << EOF
-[Unit]
-After=aurora-socat.service
-Requires=aurora-socat.service
-EOF
+    rm -f $VIRTUAL_PORT
 
-    # Configure 123solar to use the virtual serial port for the aurora driver.
-    # 123solar stores inverter connection settings in config.php; the key
-    # parameter is 'AURORA_PORT' (or equivalent in your installed version).
-    # We write a small post-install config snippet into the 123solar config
-    # directory that sets the port to the socat virtual device.
-    SOLAR_CFG=/var/www/html/123solar/config/config.php
-    if [ -f "$SOLAR_CFG" ]; then
-        # Update existing port setting if present
-        if grep -q "AURORA_PORT\|aurora_port\|rs485port" "$SOLAR_CFG"; then
-            sed -i "s|['\"]\/dev\/tty[^'\"]*['\"]|'${_AURORA_VIRTUAL_PORT}'|g" "$SOLAR_CFG"
-            echo "Updated aurora serial port to ${_AURORA_VIRTUAL_PORT} in $SOLAR_CFG"
-        else
-            echo "Note: Could not auto-detect port setting in $SOLAR_CFG."
-            echo "      Manually set the aurora serial port to: ${_AURORA_VIRTUAL_PORT}"
-        fi
-    else
-        echo "Note: 123solar config.php not found at expected path."
-        echo "      When configuring 123solar via the web UI, set the inverter"
-        echo "      serial port to: ${_AURORA_VIRTUAL_PORT}"
+    # Start socat: fresh TCP connection per call to match adapter's short-connection mode
+    socat PTY,link=$VIRTUAL_PORT,b19200,raw,echo=0 TCP:$ADAPTER_IP:$ADAPTER_PORT &
+    SOCAT_PID=$!
+
+    # Wait up to 5 seconds for the virtual port symlink to appear
+    for i in $(seq 1 10); do
+        [ -e "$VIRTUAL_PORT" ] && break
+        sleep 0.5
+    done
+
+    if [ ! -e "$VIRTUAL_PORT" ]; then
+        kill $SOCAT_PID 2>/dev/null
+        exit 1
     fi
 
-    systemctl enable aurora-socat
-    systemctl start aurora-socat
+    REAL_PORT=$(readlink -f $VIRTUAL_PORT)
+
+    # Replace virtual port path with real pts path in args.
+    # aurora-real is setuid root and cannot follow symlinks in /tmp,
+    # so it must receive the actual /dev/pts/N path directly.
+    if echo "$@" | grep -q "$VIRTUAL_PORT"; then
+        ARGS="${@/$VIRTUAL_PORT/$REAL_PORT}"
+    else
+        # Some 123solar check calls (-s, -A) omit the port — append it
+        ARGS="$@ $REAL_PORT"
+    fi
+
+    aurora-real $ARGS
+    RESULT=$?
+
+    kill $SOCAT_PID 2>/dev/null
+    wait $SOCAT_PID 2>/dev/null
+    rm -f $VIRTUAL_PORT
+
+    # Brief pause to allow adapter to close TCP connection before next call
+    sleep 1
+
+    exit $RESULT
+) 200>$LOCKFILE
+WRAPEOF
+
+    # Substitute real adapter settings into the wrapper
+    sed -i "s|__ADAPTER_IP__|${_AURORA_INVERTER_IP}|g" /usr/local/bin/aurora-eth
+    sed -i "s|__ADAPTER_PORT__|${_AURORA_INVERTER_PORT}|g" /usr/local/bin/aurora-eth
+    sed -i "s|__VIRTUAL_PORT__|${_AURORA_VIRTUAL_PORT}|g" /usr/local/bin/aurora-eth
+
+    chmod +x /usr/local/bin/aurora-eth
+
+    # Symlink aurora -> aurora-eth so 123solar calls the wrapper transparently
+    ln -sf /usr/local/bin/aurora-eth /usr/local/bin/aurora
+
+    # Write 123solar inverter config
+    # Sets port to $_AURORA_VIRTUAL_PORT and communication options known to work
+    # with the Aurora Power One inverter at RS485 address 1 via the Waveshare adapter.
+    # -D flag is required because socat PTY devices don't support Unix serial locking.
+    SOLAR_CFG_DIR=/var/www/html/123solar/config
+    mkdir -p $SOLAR_CFG_DIR
+    cat > $SOLAR_CFG_DIR/config_invt1.php << EOF
+<?php
+// ### GENERAL FOR INVERTER #1
+\$INVNAME1="Invertor";
+// ### SPECS
+\$PLANT_POWER1=4600;
+\$PHASE1=false;
+\$CORRECTFACTOR1=1;
+\$PASSO1=9999999;
+\$SR1='no';
+// #### PROTOCOL
+\$PORT1='${_AURORA_VIRTUAL_PORT}';
+\$PROTOCOL1='aurora';
+\$ADR1='1';
+\$COMOPTION1='-U25 -Y50 -w10 -a1 -d0 -D';
+\$SYNC1=true;
+\$LOGCOM1=false;
+\$SKIPMONITORING1=false;
+EOF
+    chown www-data:www-data $SOLAR_CFG_DIR/config_invt1.php
+
+    # Create required data directories
+    mkdir -p /var/www/html/123solar/data/invt1/infos
+    chown -R www-data:www-data /var/www/html/123solar/data
 
     echo ""
-    echo "Aurora socat bridge started: TCP ${_AURORA_INVERTER_IP}:${_AURORA_INVERTER_PORT} -> ${_AURORA_VIRTUAL_PORT}"
-    echo "If you ever need to change the TCP port, edit _AURORA_INVERTER_PORT at the top of this script"
-    echo "and update /etc/systemd/system/aurora-socat.service, then run: systemctl restart aurora-socat"
+    echo "Aurora wrapper installed:"
+    echo "  aurora-real : /usr/local/bin/aurora-real (original binary)"
+    echo "  aurora-eth  : /usr/local/bin/aurora-eth  (socat TCP wrapper)"
+    echo "  aurora      : /usr/local/bin/aurora -> aurora-eth (symlink)"
+    echo "  Adapter     : ${_AURORA_INVERTER_IP}:${_AURORA_INVERTER_PORT}"
+    echo "  Virtual port: ${_AURORA_VIRTUAL_PORT}"
 fi
 
 # 485solar-get (cmake already installed above)
@@ -245,14 +299,14 @@ systemctl start 123solar
 echo ""
 echo "Installation complete!"
 echo ""
-echo "Aurora inverter connection summary:"
-echo "  Adapter address : ${_AURORA_INVERTER_IP}:${_AURORA_INVERTER_PORT}"
-echo "  Virtual port    : ${_AURORA_VIRTUAL_PORT}"
-echo "  socat service   : aurora-socat.service"
+echo "Next steps:"
+echo "  1. Access 123solar at http://$(hostname -I | awk '{print $1}')/123solar"
+echo "  2. Log in to the admin panel and verify inverter settings:"
+echo "       Port    : ${_AURORA_VIRTUAL_PORT}"
+echo "       Protocol: aurora"
+echo "       Options : -U25 -Y50 -w10 -a1 -d0 -D"
+echo "  3. Configure msmtp email:"
+echo "       sudo nano /etc/msmtprc"
 echo ""
-echo "To verify the socat bridge is running:"
-echo "  systemctl status aurora-socat"
-echo "  ls -la ${_AURORA_VIRTUAL_PORT}"
-echo ""
-echo "Don't forget to configure msmtp, using the following command:"
-echo "  sudo nano /etc/msmtprc"
+echo "To verify aurora is communicating with the inverter:"
+echo "  sudo -u www-data /usr/local/bin/aurora-eth -U25 -Y50 -w10 -a1 -d0"
