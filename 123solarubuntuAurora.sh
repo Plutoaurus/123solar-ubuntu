@@ -62,6 +62,7 @@ apt-get autoremove -y
 # - socat is used by the aurora-eth wrapper to bridge TCP to a per-call virtual serial port
 apt-get -y install \
     nginx \
+    apache2-utils \
     git \
     php-cli php-fpm php-cgi php-curl php-xml php-mbstring \
     msmtp \
@@ -78,13 +79,14 @@ PHP_FPM="php${PHP_VERSION}-fpm"
 echo "Detected PHP version: $PHP_VERSION (service: $PHP_FPM)"
 
 # nginx/PHP
+# nginx.conf is maintained in the repo at https://github.com/Plutoaurus/123solar-ubuntu
+# The sed command substitutes the placeholder 'php-fpm' with the actual versioned
+# PHP-FPM service name (e.g. php8.3-fpm) detected above.
 cp $GIT_PATH/nginx.conf /etc/nginx/sites-available/default
 sed -i "s/php-fpm/$PHP_FPM/g" /etc/nginx/sites-available/default
 
 # Ensure the default site symlink is in place
-if [ -f /etc/nginx/sites-enabled/default ]; then
-    ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
-fi
+ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
 
 # msmtp
 cp $GIT_PATH/msmtprc /etc/msmtprc
