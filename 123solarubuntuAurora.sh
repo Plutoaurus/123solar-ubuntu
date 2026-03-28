@@ -101,6 +101,9 @@ if [ -d ~/123solar ]; then
     rm -rf ~/123solar
 fi
 git clone --depth=1 $_123SOLAR_REPO ~/123solar
+# Remove any previous install and copy fresh from the repo root
+rm -rf /var/www/html/123solar
+mkdir -p /var/www/html/123solar
 cp -r ~/123solar/* /var/www/html/123solar/
 rm -rf ~/123solar
 chown -R www-data:www-data /var/www/html/123solar
