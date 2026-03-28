@@ -26,6 +26,9 @@ That's it.
 The script will handle everything from there — installing packages, building aurora, setting up socat, and starting all the services.
 
 For Aurora Power One
+
 Port: /dev/ttyV0
+
 Protocol: Aurora (or Power One Aurora depending on your version)
+
 Communication options: -U25 -Y50 -w10 -a1 -d0 -D
